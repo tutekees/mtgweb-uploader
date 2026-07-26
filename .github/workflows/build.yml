@@ -1,0 +1,43 @@
+# Builds the release binary from source, in public, so anyone can verify that the published
+# executable corresponds to the tagged code. SignPath requires builds to be verifiable and
+# not produced on a maintainer's machine.
+name: build
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies from the lockfile
+        run: npm ci
+
+      - name: Build the executable
+        run: npm run build
+
+      - name: Publish the checksum
+        shell: bash
+        run: |
+          sha256sum dist/mtgweb-uploader.exe | tee dist/mtgweb-uploader.exe.sha256
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mtgweb-uploader-windows
+          path: |
+            dist/mtgweb-uploader.exe
+            dist/mtgweb-uploader.exe.sha256
+          if-no-files-found: error

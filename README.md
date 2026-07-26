@@ -66,6 +66,11 @@ signing certificates cost money this project does not have.
 If that is not acceptable to you, mtgweb also accepts a collection export file from any common
 tracker, with no software to install. It gets you the same result.
 
+## Security and code signing
+
+See [SECURITY.md](SECURITY.md) for the code signing policy, how releases are built, and what
+the program does and does not transmit.
+
 ## License
 
 GPL-3.0-only. This program links [mtga-reader](https://github.com/mtgatool/mtga-reader), which
