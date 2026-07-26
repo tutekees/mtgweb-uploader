@@ -1,0 +1,23 @@
+{
+  "name": "mtgweb-uploader",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Reads your MTG Arena collection from the running game and sends it to your mtgweb account.",
+  "license": "GPL-3.0-only",
+  "bin": "upload.js",
+  "scripts": {
+    "start": "node upload.js",
+    "build": "pkg . --targets node22-win-x64 --output dist/mtgweb-uploader.exe"
+  },
+  "dependencies": {
+    "mtga-reader": "^0.1.7"
+  },
+  "devDependencies": {
+    "@yao-pkg/pkg": "^6.9.0"
+  },
+  "pkg": {
+    "//": "mtga-reader ships one prebuilt .node per platform. pkg cannot bundle a native addon INTO the exe, so it travels beside it and is loaded at runtime.",
+    "assets": ["node_modules/mtga-reader/*.node"],
+    "outputPath": "dist"
+  }
+}

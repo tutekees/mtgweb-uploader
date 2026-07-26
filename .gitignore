@@ -1,0 +1,4 @@
+node_modules/
+dist/
+*.exe
+mtgweb.key
