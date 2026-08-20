@@ -168,7 +168,19 @@ async function upload() {
     (body.messages ?? ["Unknown error."]).forEach((m) => console.error("  " + m));
     process.exit(7);
   }
-  console.log(body.summary ?? "Uploaded.");
+  /*
+   * The line that says it worked.
+   *
+   * mtga-reader prints its own diagnostics to stdout while it walks the game's memory, so the
+   * window fills with mono_root_domain addresses and assembly names, and the two lines that
+   * matter arrive at the bottom of a wall of hex. Matias read the whole thing and could not tell
+   * whether it had finished. A blank line and a plain sentence cost nothing and answer that.
+   */
+  console.log("");
+  console.log("You're all set!");
+  console.log(body.summary ?? "Your collection was saved.");
+  console.log("Your decks: https://the99.cards/decks");
+  console.log("Run this again whenever you open packs.");
 }
 
 /**
