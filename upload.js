@@ -61,6 +61,21 @@ function readConfig() {
 }
 
 /** Keeps the console window readable when the app was double clicked. */
+/**
+ * The only way out on a failure: print, hold the window so the message can be read, then exit.
+ *
+ * It replaces a global override of process.exit that this file carried until 2026-09-06. That
+ * override kept the window open by calling holdWindow() and RETURNING, which meant every
+ * `process.exit(n)` on a failure path let the function carry on: a read that Arena refused
+ * ("Access is denied") went on to "0 cards, too few", then posted the empty collection, then
+ * printed "You're all set! Your collection was saved". The server had rejected it. The promise
+ * this returns never resolves, so nothing can run after a `return die(...)`.
+ */
+function die(code, ...lines) {
+  for (const l of lines) console.error(l);
+  return holdWindow().then(() => process.exit(code));
+}
+
 async function holdWindow() {
   if (!PACKAGED || process.argv.includes("--no-pause")) return;
   process.stdout.write("\nPress Enter to close. ");
@@ -94,8 +109,7 @@ async function setup() {
   console.log("Paste the upload key from your mtgweb account page.");
   const token = await ask("Upload key: ");
   if (!token.startsWith("mtgw_")) {
-    console.error("That does not look like an upload key. They start with mtgw_.");
-    process.exit(2);
+    return die(2, "That does not look like an upload key. They start with mtgw_.");
   }
   const api = (await ask(`Server [${DEFAULT_API}]: `)) || DEFAULT_API;
   writeConfig({ token, api });
@@ -105,13 +119,11 @@ async function setup() {
 async function upload() {
   const cfg = readConfig();
   if (!cfg?.token) {
-    console.error("No upload key stored yet. Run: node upload.js --setup");
-    process.exit(2);
+    return die(2, "No upload key stored yet. Run: node upload.js --setup");
   }
 
   if (!(await mtga.findProcess("MTGA").catch(() => null))) {
-    console.error("MTG Arena is not running. Open it, sign in, and try again.");
-    process.exit(3);
+    return die(3, "MTG Arena is not running. Open it, sign in, and try again.");
   }
 
   const t0 = Date.now();
@@ -119,8 +131,7 @@ async function upload() {
   try {
     raw = await mtga.readCollection("MTGA");
   } catch (e) {
-    console.error("Could not read your collection: " + e.message);
-    process.exit(4);
+    return die(4, "Could not read your collection: " + e.message);
   }
   const ms = Date.now() - t0;
 
@@ -128,20 +139,27 @@ async function upload() {
   // Swallowing it into "too few cards" sends the user hunting for the wrong problem.
   // Measured case: mid-match or on a submenu, Arena's WrapperController.Instance is null.
   if (raw?.error) {
-    console.error("Could not read your collection yet: " + raw.error);
-    console.error("Go to Arena's home screen (not in a match) and run this again.");
-    process.exit(3);
+    // "Access is denied" is Windows refusing to open the game's process: Arena is running with
+    // more rights than this program (its updater launches it elevated after a patch). It is
+    // not a screen problem, so it gets its own instruction instead of the home-screen one.
+    if (/access is denied|elevated/i.test(raw.error)) {
+      return die(3,
+        "Windows would not let this program read Arena: " + raw.error,
+        "Arena is running elevated. Close Arena, start it from its normal shortcut, and run",
+        "this again. If it still says so, run this program as administrator once.");
+    }
+    return die(3,
+      "Could not read your collection yet: " + raw.error,
+      "Go to Arena's home screen (not in a match) and run this again.");
   }
   const cards = raw?.cards ?? [];
 
   // Local guard: a partial read that the server accepts is worse than no upload at all. It
   // would tell the user they cannot build decks they can actually build.
   if (cards.length < MIN_PLAUSIBLE_CARDS) {
-    console.error(
+    return die(5,
       `Only ${cards.length} cards came back in ${ms}ms, which is too few to be a real ` +
-      `collection. Open the Collection screen in Arena and try again.`
-    );
-    process.exit(5);
+      `collection. Open the Collection screen in Arena and try again.`);
   }
 
   const copies = cards.reduce((a, c) => a + (c.qty || 0), 0);
@@ -160,13 +178,11 @@ async function upload() {
   const body = await res.json().catch(() => ({}));
 
   if (res.status === 401) {
-    console.error("Your upload key was rejected. Generate a new one and run --setup again.");
-    process.exit(6);
+    return die(6, "Your upload key was rejected. Generate a new one and run --setup again.");
   }
   if (!res.ok) {
-    console.error("The server did not accept this collection:");
-    (body.messages ?? ["Unknown error."]).forEach((m) => console.error("  " + m));
-    process.exit(7);
+    return die(7, "The server did not accept this collection:",
+      ...(body.messages ?? ["Unknown error."]).map((m) => "  " + m));
   }
   /*
    * The line that says it worked.
@@ -191,21 +207,9 @@ async function main() {
   try {
     await (process.argv.includes("--setup") ? setup() : upload());
   } catch (e) {
-    console.error("Unexpected error: " + e.message);
-    await holdWindow();
-    process.exit(1);
+    return die(1, "Unexpected error: " + e.message);
   }
   await holdWindow();
 }
-
-// upload() calls process.exit on its failure paths; hold the window there too.
-const realExit = process.exit.bind(process);
-process.exit = (code) => {
-  if (PACKAGED && code) {
-    holdWindow().then(() => realExit(code));
-    return undefined;
-  }
-  return realExit(code);
-};
 
 main();
