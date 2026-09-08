@@ -1,6 +1,6 @@
 {
   "name": "mtgweb-uploader",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "private": true,
   "description": "Reads your MTG Arena collection from the running game and sends it to your mtgweb account.",
   "license": "GPL-3.0-only",

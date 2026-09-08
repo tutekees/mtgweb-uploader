@@ -3,9 +3,10 @@
  * mtgweb desktop uploader.
  *
  * Reads your collection straight from the memory of the running MTG Arena process and sends it
- * to your mtgweb account. You do not export anything, you do not create an account anywhere
- * else, and it does not need administrator rights (measured: isAdmin() is false and the read
- * still returns the full collection).
+ * to your mtgweb account, together with the display name and id of the Arena account it read,
+ * so two Arena accounts stay two collections. You do not export anything, you do not create an
+ * account anywhere else, and it does not need administrator rights (measured: isAdmin() is
+ * false and the read still returns the full collection).
  *
  * LICENSE: this program links mtga-reader (GPL-3.0-only), so this program is GPL. It runs as
  * its own process and talks to the server over HTTP, so the server is not a derived work.
@@ -116,6 +117,27 @@ async function setup() {
   console.log(`Saved to ${CONFIG_FILE}. Run this again with Arena open to upload.`);
 }
 
+/**
+ * The account's id and display name, and NOTHING else from what the reader returns.
+ *
+ * readAccount() hands back the whole AccountInformation object of the game, which includes the
+ * player's email and the session's access token. Those never leave this machine: the two
+ * fields below are copied out by name, and the object itself is dropped. `--dry` prints exactly
+ * the block that would be sent, so this can be checked without reading the code.
+ */
+async function readAccountSafe() {
+  try {
+    const a = await mtga.readAccount("MTGA");
+    if (!a || a.error || typeof a.accountId !== "string" || !a.accountId.trim()) return null;
+    return {
+      id: a.accountId.trim(),
+      name: typeof a.displayName === "string" ? a.displayName.trim() : "",
+    };
+  } catch {
+    return null;
+  }
+}
+
 async function upload() {
   const cfg = readConfig();
   if (!cfg?.token) {
@@ -165,15 +187,22 @@ async function upload() {
   const copies = cards.reduce((a, c) => a + (c.qty || 0), 0);
   console.log(`Read ${cards.length.toLocaleString("en-US")} distinct cards (${copies.toLocaleString("en-US")} copies) in ${ms}ms`);
 
+  // Which Arena account this is, so a player with two accounts gets two collections on the
+  // site instead of the second upload overwriting the first. Never a reason to stop: a
+  // collection with no account name is still worth more than no collection.
+  const account = await readAccountSafe();
+  if (account) console.log(`Signed in to Arena as ${account.name || account.id}`);
+  else console.log("Arena did not say which account this is; it goes to your most recent one.");
+
   if (process.argv.includes("--dry")) {
-    console.log("--dry: nothing was sent.");
+    console.log("--dry: nothing was sent. The account block would be: " + JSON.stringify(account));
     return;
   }
 
   const res = await fetch(cfg.api.replace(/\/$/, "") + "/api/v1/collection", {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${cfg.token}` },
-    body: JSON.stringify({ cards }),
+    body: JSON.stringify(account ? { cards, account } : { cards }),
   });
   const body = await res.json().catch(() => ({}));
 

@@ -16,10 +16,13 @@ That is the whole program. It takes about a second.
 ## What it does NOT do
 
 - **It never asks for administrator rights.** Other Arena trackers require them. This one does not.
-- **It reads only your card list.** Not your account details, not your email, not your match
-  history, not your decks.
-- **It sends nothing else.** The only thing that leaves your machine is a list of card ids and
-  quantities, plus your upload key so we know which account it belongs to.
+- **It reads your card list and the name of the Arena account it belongs to.** Not your match
+  history, not your decks. The account's display name and id are what let a player with two
+  Arena accounts keep two collections on the site instead of one overwriting the other.
+- **It sends nothing else.** What leaves your machine is a list of card ids and quantities, the
+  Arena account's display name and id, and your upload key so we know which site account it
+  belongs to. The game hands the reader more than that (your email, a session token); those are
+  never copied out. `node upload.js --dry` prints the exact account block it would send.
 - **It stores no credentials for Arena or Wizards of the Coast.** It never sees them.
 
 You can verify all of this: it is a single file, [`upload.js`](upload.js), about 200 lines.
